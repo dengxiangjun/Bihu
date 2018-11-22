@@ -1,5 +1,6 @@
 package com.jd.dxj.model;
 
+
 import com.jd.y.common.mybatis.BaseEntity;
 
 /**

@@ -1,19 +1,22 @@
 package com.jd.dxj;
 
+import com.jd.dxj.enums.BihuEnmus;
 import com.jd.dxj.model.Follow;
 import com.jd.dxj.model.UserContent;
 import com.jd.dxj.util.SpringContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import tk.mybatis.spring.annotation.MapperScan;
 
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * description 主类
@@ -29,50 +32,57 @@ public class Application {
 
     public static void main(String[] args) throws Exception {
         SpringApplication.run(Application.class, args);
-        init(args);
+        boot(args);
     }
 
 
-    private static void init(String... args) throws Exception {
+    private static void boot(String... args) throws Exception {
         ExecutorService voteAndComment = Executors.newCachedThreadPool();
 
         BihuCrack bihuCrack = SpringContext.getBean(BihuCrack.class);
         String accessToken = bihuCrack.login();
         if (accessToken != null) {
-
-            //test(bihuCrack);//测试
-
             new Thread(() -> {
                 while (true) {
                     List<Follow> follows = bihuCrack.getUserFollowList();
                     logger.info("关注人列表: " + follows);
-                    for (Follow follow : follows) {
+
+                    List<Follow> famousFollows = follows.stream().filter((follow -> follow.getFans() >= BihuEnmus.FAMOUS_THRESHOLD)).collect(Collectors.toList());
+                    //logger.info("大V个数：" + famousFollows.size());
+                    for (Follow follow : famousFollows) {
                         voteAndComment.execute(() -> {
-                            if (follow.getFans() > 500){//大V
-                                List<UserContent> userContents = bihuCrack.getUserContentList(follow);
-                                for (UserContent userContent : userContents) {
-                                    //logger.info(userContent.getContentId() + "");
-                                    bihuCrack.upVote(userContent, bihuCrack.judgement());
-                                    bihuCrack.createrootcomment(userContent, bihuCrack.judgement());//评论
-                                }
+                            List<UserContent> userContents = bihuCrack.getUserContentList(follow);
+                            for (UserContent userContent : userContents) {
+                                //logger.info(userContent.getContentId() + "");
+                                bihuCrack.upVote(userContent, bihuCrack.judgement());
+                                bihuCrack.createrootcomment(userContent, bihuCrack.judgement());//评论
                             }
                         });
                     }
                     logger.info("========================进入休眠");
                     try {
-                        Thread.sleep(10000);
+                        Thread.sleep(6000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
             }).start();
+
+            //timerRereshFollow(bihuCrack);
+
         } else logger.error("登录错误");
     }
 
-//    private static void test(BihuCrack bihuCrack) {
-//        UserContent userContent = new UserContent();
-//        userContent.setContentId(1948640403L);
-//        bihuCrack.upVote(userContent, bihuCrack.judgement());
-//        bihuCrack.createrootcomment(userContent, bihuCrack.judgement());//评论
-//    }
+    private static void timerRereshFollow(BihuCrack bihuCrack) {
+        TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                List<Follow> follows = bihuCrack.getUserFollowListByHttp();
+
+            }
+        };
+        Timer timer = new Timer();
+        //安排指定的任务在指定的时间开始进行重复的固定延迟执行。这里是每30分钟执行一次
+        timer.schedule(timerTask, 10, 1000 * 1800);
+    }
 }

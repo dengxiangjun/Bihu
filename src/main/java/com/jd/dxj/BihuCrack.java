@@ -2,9 +2,11 @@ package com.jd.dxj;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.hankcs.hanlp.HanLP;
+import com.jd.dxj.enums.BihuEnmus;
 import com.jd.dxj.mapper.FollowMapper;
 import com.jd.dxj.model.*;
-//import com.jd.dxj.util.MailUtil;
+import com.jd.dxj.util.MailUtil;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
@@ -17,6 +19,7 @@ import org.apache.http.impl.cookie.BasicClientCookie;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -54,22 +57,22 @@ public class BihuCrack {
     private FollowMapper followMapper;
 
 
-//    @Autowired
-//    private JavaMailSender mailSender; //自动注入的Bean
-//
-//    @Value("${spring.mail.username}")
-//    private String sender; //读取配置文件中的参数
+    @Autowired
+    private JavaMailSender mailSender; //自动注入的Bean
+
+    @Value("${spring.mail.username}")
+    private String sender; //读取配置文件中的参数
 
     @Value("${mailTo}")
     private String mailTo; //读取配置文件中的参数
 
-    private String[] commentArr = {"唉，老铁稳！", "支持好文赞一个", "打赏互关互赞谢谢", "支持", "必须支持",
-            "稳当", "支持大佬，抢收益", "来了！", "大佬好，来支持币乎榜了，很棒", "整理的很棒", "文章内容非常好", "后排真爱粉来了", "支持", "精彩",
+    private String[] commentArr = {"唉，老铁稳！", "支持好文赞一个",
+            "稳当", "来了！", "大佬好，很棒", "整理的很棒", "文章内容非常好", "后排真爱粉来了", "精彩",
             "嗯嗯，文章质量非常高，感谢您的分享", "希望能有所借鉴", "好文，能量送上", "你的前排太难抢了，我费了好大的劲啊", "值得学习", "准时到，好文章不怕晚，默默期待",
             "新人每天都来关注币虎的数据，真的帮助很大", "谢谢分享支持币乎榜", "准时来支持看榜单数据", "来学习新文章支持币乎", "每日拜读，受益匪浅！", "币乎权威数据，很全面",
-            "好数据币虎榜", "每天定时来学习", "好文要支持", "支持老友",
+            "这文章真不错", "每天定时来学习", "好文要支持", "支持老友",
             "文章不错，支持你", "大神力作，支持", "如果你心里不认可数字货币，不要做梦能发财，你肯定拿不住的，先想办法从心里认可区块链，认可你持有的数字货币再说。",
-            "感谢分享，学习支持", "打卡支持。"};
+            "感谢分享，学习了", "打卡"};
 
     /**
      * 登录
@@ -174,7 +177,8 @@ public class BihuCrack {
      * @param challenge
      */
     public void upVote(UserContent userContent, String challenge) {
-        if (userContent.getType() == 1) {//微文
+        String articleLink = concatArticleLink(userContent);
+        if (userContent.getType() == BihuEnmus.SHORT_CONTENT) {//微文
             User upVoteUser = new User(challenge, "1");
             HttpClient client = new DefaultHttpClient();
             String url = host + "/bihu/shortContent/" + userContent.getContentId() + "/upVote";
@@ -206,13 +210,14 @@ public class BihuCrack {
                         JSONObject data = jsonObject.getJSONObject("data");
                         int income = data.getInteger("income");
                         logger.info("微文点赞成功，收益是：" + income + " ;url: " + url);
+                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "长文点赞成功", articleLink);
                     }
                 }
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else {
-            ContentUpVote contentUpVote = new ContentUpVote(String.valueOf(userContent.getContentId()),challenge,1);
+            ContentUpVote contentUpVote = new ContentUpVote(String.valueOf(userContent.getContentId()), challenge, 1);
             HttpClient client = new DefaultHttpClient();
             String url = host + "/api/content/upVote";
             HttpPost post = new HttpPost(url);
@@ -242,6 +247,7 @@ public class BihuCrack {
                     if (res == 1) {
                         int data = jsonObject.getInteger("data");
                         logger.info("长文点赞成功，收益是：" + data + " ;长文信息: " + contentUpVote);
+                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "长文点赞成功", articleLink);
                     }
                 }
             } catch (IOException e) {
@@ -256,53 +262,8 @@ public class BihuCrack {
     public List<Follow> getUserFollowList() {
         List<Follow> follows = followMapper.selectAll();
         if (follows.size() == 0) {
-            //List<Follow> follows = new ArrayList<>();
-            HttpClient client = new DefaultHttpClient();
-            String url = host + "/api/content/show/getUserFollowList";
-            HttpPost post = new HttpPost(url);
-            int pageNum = 1;
-            int pageCnt = 1;
-            while (pageNum <= pageCnt) {
-                try {
-                    QueryFollowVO queryFollowVO = new QueryFollowVO(currentUser.getUserId(), pageNum++);
-
-                    StringEntity s = new StringEntity(JSONObject.toJSONString(queryFollowVO));
-                    s.setContentEncoding("UTF-8");
-                    s.setContentType("application/json");
-                    post.setEntity(s);
-
-                    post.setHeader("Accept", "*/*");
-                    post.setHeader("Accept-Encoding", "gzip, deflate, br");
-                    post.setHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
-                    post.setHeader("Authorization", "token " + currentUser.getAccessToken());
-                    post.setHeader("Connection", "keep-alive");
-                    //post.setHeader("Content-Length","58");
-                    post.setHeader("Content-Type", "application/json;charset=UTF-8");
-//                post.setHeader("Host", "be02.bihu.com");
-//                post.setHeader("Origin", "https://bihu.com");
-//                post.setHeader("Referer", "https://bihu.com/people/1426196361/follow");
-                    post.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36");
-                    HttpResponse httpResponse = client.execute(post);
-                    if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                        String content = EntityUtils.toString(new GzipDecompressingEntity(httpResponse.getEntity()));
-                        logger.info(content);
-                        //follows = parseFollowList(content);
-                        JSONObject jsonObject = (JSONObject) JSONObject.parse(content);
-                        JSONObject dataJO = jsonObject.getJSONObject("data");
-                        JSONArray jsonArray = dataJO.getJSONArray("list");
-                        List<Follow> pageFollowList = jsonArray.toJavaList(Follow.class);
-                        follows.addAll(pageFollowList);
-                        followMapper.insertList(pageFollowList);
-
-                        JSONArray navigatepageNums = dataJO.getJSONArray("navigatepageNums");
-                        pageCnt = navigatepageNums.size();
-                        //logger.info("pageCnt: " + pageCnt);
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
+            follows = getUserFollowListByHttp();
+            followMapper.insertList(follows);
         }
 
         Collections.sort(follows, new Comparator<Follow>() {
@@ -313,6 +274,61 @@ public class BihuCrack {
         });
         return follows;
     }
+
+    /**
+     * 从网络上获取关注列表
+     *
+     * @return
+     */
+    public List<Follow> getUserFollowListByHttp() {
+        List<Follow> follows = new ArrayList<>();
+        HttpClient client = new DefaultHttpClient();
+        String url = host + "/api/content/show/getUserFollowList";
+        HttpPost post = new HttpPost(url);
+        int pageNum = 1;
+        int pageCnt = 1;
+        while (pageNum <= pageCnt) {
+            try {
+                QueryFollowVO queryFollowVO = new QueryFollowVO(currentUser.getUserId(), pageNum++);
+
+                StringEntity s = new StringEntity(JSONObject.toJSONString(queryFollowVO));
+                s.setContentEncoding("UTF-8");
+                s.setContentType("application/json");
+                post.setEntity(s);
+
+                post.setHeader("Accept", "*/*");
+                post.setHeader("Accept-Encoding", "gzip, deflate, br");
+                post.setHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+                post.setHeader("Authorization", "token " + currentUser.getAccessToken());
+                post.setHeader("Connection", "keep-alive");
+                post.setHeader("Content-Type", "application/json;charset=UTF-8");
+                post.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36");
+                HttpResponse httpResponse = client.execute(post);
+                if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    String content = EntityUtils.toString(new GzipDecompressingEntity(httpResponse.getEntity()));
+                    logger.info(content);
+                    //follows = parseFollowList(content);
+                    JSONObject jsonObject = (JSONObject) JSONObject.parse(content);
+                    JSONObject dataJO = jsonObject.getJSONObject("data");
+                    JSONArray jsonArray = dataJO.getJSONArray("list");
+                    List<Follow> pageFollowList = jsonArray.toJavaList(Follow.class);
+                    follows.addAll(pageFollowList);
+
+                    int total = dataJO.getInteger("total");
+                    int pageSize = dataJO.getInteger("pageSize");
+                    pageCnt = total / pageSize + (total % pageSize > 0 ? 1 : 0);
+                    //logger.info("pageCnt: " + pageCnt);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return follows;
+    }
+
+//    public void refrshFollow(){
+//        followMapper.d
+//    }
 
 //    /**
 //     * 解析关注人列表
@@ -360,9 +376,11 @@ public class BihuCrack {
             HttpResponse httpResponse = client.execute(post);
             if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 String content = EntityUtils.toString(new GzipDecompressingEntity(httpResponse.getEntity()));
+                logger.info("请求用户文章列表成功，follow: " + follow);
                 userContents = parseUserContent(content);
             }
         } catch (IOException e) {
+            logger.error("url: " + url + " ; follow" + follow);
             e.printStackTrace();
         }
         return userContents;
@@ -390,7 +408,7 @@ public class BihuCrack {
             Long id = jsonObject1.getLong("id");
             Long contentId = jsonObject1.getLong("contentId");
             int type = jsonObject1.getInteger("type");
-            //if (type == 1) continue;
+            // if (type == 1) continue;
             String content = jsonObject1.getString("content");
             String snapcontent = jsonObject1.getString("snapcontent");
             Date createTime = jsonObject1.getDate("createTime");
@@ -446,7 +464,7 @@ public class BihuCrack {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return total > 0;
+        return userContent.getType() == 0 ? total > 5 : total > 0;//长文5个以上的人评论表示已经被人评论过了,微文抢第一个
     }
 
 
@@ -457,8 +475,10 @@ public class BihuCrack {
      * @param challenge
      */
     public void createrootcomment(UserContent userContent, String challenge) {
-        Random random = new Random();
-        CreateComment createComment = new CreateComment(String.valueOf(userContent.getContentId()), challenge, commentArr[random.nextInt(commentArr.length)], 1);
+        String comment = commentGenerator(userContent);
+        String articleLink = concatArticleLink(userContent);
+
+        CreateComment createComment = new CreateComment(String.valueOf(userContent.getContentId()), challenge, comment, 1);
         //CreateComment createComment = new CreateComment(String.valueOf(1750244118), challenge, "好文", 1);
         HttpClient client = new DefaultHttpClient();
         String url = host + "/bihu/comment/createrootcomment";
@@ -484,11 +504,39 @@ public class BihuCrack {
                 if (res == 1) {
                     logger.info("评论成功， ;url: " + url);
 
-                    //MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","),"评论成功", url);
+                    MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "评论成功", articleLink);
                 } else logger.info(content);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 拼接文章链接
+     * @param userContent
+     * @return
+     */
+    private String concatArticleLink(UserContent userContent) {
+        return "https://bihu.com/".concat(userContent.getType() == BihuEnmus.ARTICLE ? "article" : "shortContent")
+                .concat("/" + userContent.getContentId());
+    }
+
+    /**
+     * 评论生成器
+     *
+     * @param userContent
+     * @return
+     */
+    private String commentGenerator(UserContent userContent) {
+       // String content = userContent.getType() == BihuEnmus.ARTICLE ? userContent.getContent() : userContent.getSnapcontent();
+        List<String> keywordList = HanLP.extractSummary(userContent.getContent(), 5);
+        String comment;
+        if (keywordList.size() > 0) comment = String.join(",", keywordList);
+        else {
+            Random random = new Random();
+            comment = commentArr[random.nextInt(commentArr.length)];
+        }
+        return comment;
     }
 }
