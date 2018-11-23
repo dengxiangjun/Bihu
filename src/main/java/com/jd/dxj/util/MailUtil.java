@@ -1,6 +1,13 @@
 package com.jd.dxj.util;
+import com.jd.dxj.Application;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+
+import java.net.SocketException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * description 邮箱工具
@@ -9,6 +16,13 @@ import org.springframework.mail.javamail.JavaMailSender;
  * @date 2018/11/1 9:36
  **/
 public class MailUtil {
+
+    private static Logger logger = LoggerFactory.getLogger(MailUtil.class);
+
+    /**
+     * 发送邮件线程池
+     */
+    private static ExecutorService executorService = Executors.newCachedThreadPool();
 
     /**
      * 发送文本邮件
@@ -19,6 +33,7 @@ public class MailUtil {
      * @param text 内容
      */
     public static void sendTxtMail(JavaMailSender mailSender, String sender, String[] to, String subject, String text) {
+
         SimpleMailMessage simpleMailMessage = new SimpleMailMessage();
         // 设置收件人，寄件人
         simpleMailMessage.setTo(to);
@@ -26,7 +41,10 @@ public class MailUtil {
         simpleMailMessage.setSubject(subject);
         simpleMailMessage.setText(text);
         // 发送邮件
-        mailSender.send(simpleMailMessage);
+        logger.info("发送邮件,subject: " + subject + " ; text" + text);
+        executorService.execute(()->{
+            mailSender.send(simpleMailMessage);
+        });
     }
 
 }

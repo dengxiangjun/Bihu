@@ -6,6 +6,7 @@ import com.hankcs.hanlp.HanLP;
 import com.jd.dxj.enums.BihuEnmus;
 import com.jd.dxj.mapper.FollowMapper;
 import com.jd.dxj.model.*;
+import com.jd.dxj.service.FollowService;
 import com.jd.dxj.util.MailUtil;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * description 币乎破解
@@ -54,6 +56,9 @@ public class BihuCrack {
     private BasicCookieStore cookieStore;
 
     @Resource
+    private FollowService followService;
+
+    @Resource
     private FollowMapper followMapper;
 
 
@@ -69,10 +74,10 @@ public class BihuCrack {
     private String[] commentArr = {"唉，老铁稳！", "支持好文赞一个",
             "稳当", "来了！", "大佬好，很棒", "整理的很棒", "文章内容非常好", "后排真爱粉来了", "精彩",
             "嗯嗯，文章质量非常高，感谢您的分享", "希望能有所借鉴", "好文，能量送上", "你的前排太难抢了，我费了好大的劲啊", "值得学习", "准时到，好文章不怕晚，默默期待",
-            "新人每天都来关注币虎的数据，真的帮助很大", "谢谢分享支持币乎榜", "准时来支持看榜单数据", "来学习新文章支持币乎", "每日拜读，受益匪浅！", "币乎权威数据，很全面",
+            "新人每天都来关注币虎的文章，真的帮助很大", "谢谢分享支持币乎榜", "准时来支持看榜单数据", "来学习新文章支持币乎", "每日拜读，受益匪浅！", "币乎权威文章，很全面",
             "这文章真不错", "每天定时来学习", "好文要支持", "支持老友",
             "文章不错，支持你", "大神力作，支持", "如果你心里不认可数字货币，不要做梦能发财，你肯定拿不住的，先想办法从心里认可区块链，认可你持有的数字货币再说。",
-            "感谢分享，学习了", "打卡"};
+            "感谢分享，学习了", "打卡","先赞后看","好文章，赞"};
 
     /**
      * 登录
@@ -127,9 +132,9 @@ public class BihuCrack {
         return token;
     }
 
-    public String judgement() {
+    public synchronized String judgement(UserContent userContent) {
         String challenge = null;
-
+        logger.info("正在请求judgement; " + concatArticleLink(userContent));
         HttpClient client = new DefaultHttpClient();
         String url = "https://api.geetest.com/gt_judgement?pt=0&gt=a5df0ab51a6222365f92fb01662fd57e";
         HttpPost post = new HttpPost(url);
@@ -165,7 +170,7 @@ public class BihuCrack {
                 challenge = jsonObject.getString("challenge");
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("获取judgement失败" + e.getMessage());
         }
         return challenge;
     }
@@ -176,7 +181,12 @@ public class BihuCrack {
      * @param userContent
      * @param challenge
      */
-    public void upVote(UserContent userContent, String challenge) {
+    public synchronized void upVote(UserContent userContent, String challenge) {
+        if (challenge == null) {
+            logger.error("未正确请求到challenge；" + concatArticleLink(userContent));
+            return;
+        }
+
         String articleLink = concatArticleLink(userContent);
         if (userContent.getType() == BihuEnmus.SHORT_CONTENT) {//微文
             User upVoteUser = new User(challenge, "1");
@@ -210,11 +220,11 @@ public class BihuCrack {
                         JSONObject data = jsonObject.getJSONObject("data");
                         int income = data.getInteger("income");
                         logger.info("微文点赞成功，收益是：" + income + " ;url: " + url);
-                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "长文点赞成功", articleLink);
+                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "微文点赞成功", articleLink);
                     }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.error("点赞失败" + concatArticleLink(userContent) + e.getMessage());
             }
         } else {
             ContentUpVote contentUpVote = new ContentUpVote(String.valueOf(userContent.getContentId()), challenge, 1);
@@ -251,7 +261,7 @@ public class BihuCrack {
                     }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.error("点赞失败" + concatArticleLink(userContent) + e.getMessage());
             }
         }
     }
@@ -260,11 +270,12 @@ public class BihuCrack {
      * 获取关注列表
      */
     public List<Follow> getUserFollowList() {
-        List<Follow> follows = followMapper.selectAll();
-        if (follows.size() == 0) {
-            follows = getUserFollowListByHttp();
-            followMapper.insertList(follows);
-        }
+        List<Follow> follows = getUserFollowListByHttp();
+        // Long[] ids = new Long[follows.size()];
+        //for (int i = 0; i < follows.size(); i++) ids[i] = follows.get(i).getId();
+
+        //followService.deleteByIds(ids);
+        //followMapper.insertList(follows);
 
         Collections.sort(follows, new Comparator<Follow>() {
             @Override
@@ -374,14 +385,17 @@ public class BihuCrack {
             post.setHeader("Content-Type", "application/json;charset=UTF-8");
             post.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36");
             HttpResponse httpResponse = client.execute(post);
+
             if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 String content = EntityUtils.toString(new GzipDecompressingEntity(httpResponse.getEntity()));
-                logger.info("请求用户文章列表成功，follow: " + follow);
+                //logger.info("请求用户文章列表成功，follow: " + follow);
+                logger.info("请求follow的文章" + follow + ";响应是：" + content);
                 userContents = parseUserContent(content);
+                // logger.info("可以点赞的文章" + userContents);
             }
         } catch (IOException e) {
-            logger.error("url: " + url + " ; follow" + follow);
-            e.printStackTrace();
+            logger.error("获取用户文章列表失败 follow" + follow + e.getMessage());
+            // e.printStackTrace();
         }
         return userContents;
     }
@@ -397,17 +411,19 @@ public class BihuCrack {
         JSONObject dataJO = jsonObject.getJSONObject("data");
         JSONArray jsonArray = dataJO.getJSONArray("list");
         List<UserContent> userContents = new ArrayList<>();
+        if (jsonArray == null) return userContents;
         for (Object object : jsonArray) {
             JSONObject jsonObject1 = (JSONObject) object;
-
+            int type = jsonObject1.getInteger("type");
             int ups = jsonObject1.getInteger("ups");
-            if (ups > 0) continue;//跳过已经被人点赞过得文章
+            if (type == BihuEnmus.SHORT_CONTENT && ups > 10 || type == BihuEnmus.ARTICLE && ups > 1)
+                continue;//跳过已经被人点赞过得文章
 
             int up = jsonObject1.getInteger("up");
             if (up == 1) continue; //跳过已经点赞的文章
             Long id = jsonObject1.getLong("id");
             Long contentId = jsonObject1.getLong("contentId");
-            int type = jsonObject1.getInteger("type");
+
             // if (type == 1) continue;
             String content = jsonObject1.getString("content");
             String snapcontent = jsonObject1.getString("snapcontent");
@@ -417,7 +433,7 @@ public class BihuCrack {
             UserContent userContent = new UserContent(id, contentId, type, content, snapcontent, up, ups, createTime, userId, userName);
 
             if (hasComment(userContent)) continue;
-            logger.info("需要点赞和评论的文章: " + userContent);
+            logger.info("需要点赞和评论的文章: " + concatArticleLink(userContent) + " ;userContent: " + userContent);
             userContents.add(userContent);
 
         }
@@ -430,12 +446,12 @@ public class BihuCrack {
      * @param userContent
      * @return
      */
-    public boolean hasComment(UserContent userContent) {
+    public synchronized boolean hasComment(UserContent userContent) {
         ListRootComment listRootComment = new ListRootComment(userContent.getContentId(), 1);
         HttpClient client = new DefaultHttpClient();
         String url = host + "/bihu/comment/listrootcomment";
         HttpPost post = new HttpPost(url);
-        int total = 0;
+        int total = Integer.MAX_VALUE;
         try {
             StringEntity s = new StringEntity(JSONObject.toJSONString(listRootComment));
             s.setContentEncoding("UTF-8");
@@ -462,9 +478,9 @@ public class BihuCrack {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("请求文章：" + concatArticleLink(userContent) + "的评论错误" + e.getMessage());
         }
-        return userContent.getType() == 0 ? total > 5 : total > 0;//长文5个以上的人评论表示已经被人评论过了,微文抢第一个
+        return userContent.getType() == BihuEnmus.ARTICLE ? total > 3 : total > 0;//长文5个以上的人评论表示已经被人评论过了,微文抢第一个
     }
 
 
@@ -475,6 +491,10 @@ public class BihuCrack {
      * @param challenge
      */
     public void createrootcomment(UserContent userContent, String challenge) {
+        if (challenge == null) {
+            logger.error("未正确请求到challenge；" + concatArticleLink(userContent));
+            return;
+        }
         String comment = commentGenerator(userContent);
         String articleLink = concatArticleLink(userContent);
 
@@ -514,10 +534,11 @@ public class BihuCrack {
 
     /**
      * 拼接文章链接
+     *
      * @param userContent
      * @return
      */
-    private String concatArticleLink(UserContent userContent) {
+    public String concatArticleLink(UserContent userContent) {
         return "https://bihu.com/".concat(userContent.getType() == BihuEnmus.ARTICLE ? "article" : "shortContent")
                 .concat("/" + userContent.getContentId());
     }
@@ -529,14 +550,17 @@ public class BihuCrack {
      * @return
      */
     private String commentGenerator(UserContent userContent) {
-       // String content = userContent.getType() == BihuEnmus.ARTICLE ? userContent.getContent() : userContent.getSnapcontent();
-        List<String> keywordList = HanLP.extractSummary(userContent.getContent(), 5);
-        String comment;
-        if (keywordList.size() > 0) comment = String.join(",", keywordList);
-        else {
-            Random random = new Random();
-            comment = commentArr[random.nextInt(commentArr.length)];
-        }
+        // String content = userContent.getType() == BihuEnmus.ARTICLE ? userContent.getContent() : userContent.getSnapcontent();
+//        List<String> keywordList = HanLP.extractSummary(userContent.getContent(), 5);
+//        String comment;
+//        if (keywordList.size() > 0) comment = String.join(",", keywordList);
+//        else {
+//            Random random = new Random();
+//            comment = commentArr[random.nextInt(commentArr.length)];
+//        }
+
+        Random random = new Random();
+        String comment = userContent.getUserName() + "," + commentArr[random.nextInt(commentArr.length)];
         return comment;
     }
 }

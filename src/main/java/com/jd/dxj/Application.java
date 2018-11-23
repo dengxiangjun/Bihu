@@ -14,8 +14,10 @@ import tk.mybatis.spring.annotation.MapperScan;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -37,37 +39,40 @@ public class Application {
 
 
     private static void boot(String... args) throws Exception {
-        ExecutorService voteAndComment = Executors.newCachedThreadPool();
+        ExecutorService voteAndComment = Executors.newFixedThreadPool(20);
 
         BihuCrack bihuCrack = SpringContext.getBean(BihuCrack.class);
         String accessToken = bihuCrack.login();
         if (accessToken != null) {
-            new Thread(() -> {
-                while (true) {
-                    List<Follow> follows = bihuCrack.getUserFollowList();
-                    logger.info("关注人列表: " + follows);
-
-                    List<Follow> famousFollows = follows.stream().filter((follow -> follow.getFans() >= BihuEnmus.FAMOUS_THRESHOLD)).collect(Collectors.toList());
-                    //logger.info("大V个数：" + famousFollows.size());
-                    for (Follow follow : famousFollows) {
-                        voteAndComment.execute(() -> {
-                            List<UserContent> userContents = bihuCrack.getUserContentList(follow);
-                            for (UserContent userContent : userContents) {
-                                //logger.info(userContent.getContentId() + "");
-                                bihuCrack.upVote(userContent, bihuCrack.judgement());
-                                bihuCrack.createrootcomment(userContent, bihuCrack.judgement());//评论
-                            }
-                        });
-                    }
-                    logger.info("========================进入休眠");
-                    try {
-                        Thread.sleep(6000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+            List<Follow> follows = bihuCrack.getUserFollowList();
+            List<Follow> famousFollows = follows.stream().filter((follow -> follow.getFans() >= BihuEnmus.FAMOUS_THRESHOLD)).collect(Collectors.toList());
+            int famousCnt = famousFollows.size();
+            logger.info("大V个数：" + famousCnt);
+            while (true) {
+                //logger.info("关注人列表: " + follows);
+                CountDownLatch countDownLatch = new CountDownLatch(famousCnt);
+                for (Follow follow : famousFollows) {
+                    voteAndComment.execute(() -> {
+                        logger.info("查找follow: " + follow);
+                        List<UserContent> userContents = bihuCrack.getUserContentList(follow);
+                        for (UserContent userContent : userContents) {
+                            logger.info("准备点赞文章：" + bihuCrack.concatArticleLink(userContent));
+                            bihuCrack.upVote(userContent, bihuCrack.judgement(userContent));
+                            bihuCrack.createrootcomment(userContent, bihuCrack.judgement(userContent));//评论
+                        }
+                        countDownLatch.countDown();
+                    });
                 }
-            }).start();
 
+                countDownLatch.await();
+                //voteAndComment.awaitTermination(3, TimeUnit.MINUTES);
+                logger.info("========================进入休眠==============================================");
+                try {
+                    Thread.sleep(6000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
             //timerRereshFollow(bihuCrack);
 
         } else logger.error("登录错误");

@@ -11,7 +11,7 @@ public interface BihuEnmus {
     /**
      * 大V阈值
      */
-    public static final int FAMOUS_THRESHOLD = 1000;
+    public static final int FAMOUS_THRESHOLD = 2000;
 
     /**
      * 文章类型-长文
