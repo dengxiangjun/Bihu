@@ -4,9 +4,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.hankcs.hanlp.HanLP;
 import com.jd.dxj.enums.BihuEnmus;
-import com.jd.dxj.mapper.FollowMapper;
 import com.jd.dxj.model.*;
-import com.jd.dxj.service.FollowService;
 import com.jd.dxj.util.MailUtil;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -55,11 +53,11 @@ public class BihuCrack {
 
     private BasicCookieStore cookieStore;
 
-    @Resource
-    private FollowService followService;
-
-    @Resource
-    private FollowMapper followMapper;
+//    @Resource
+//    private FollowService followService;
+//
+//    @Resource
+//    private FollowMapper followMapper;
 
 
     @Autowired

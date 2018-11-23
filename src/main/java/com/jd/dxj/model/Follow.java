@@ -1,15 +1,12 @@
 package com.jd.dxj.model;
 
-
-import com.jd.y.common.mybatis.BaseEntity;
-
 /**
  * description 关注的人
  *
  * @author dengxiangjun@jd.com
  * @date 2018/11/20 20:39
  **/
-public class Follow  extends BaseEntity {
+public class Follow {
 
     private String userId;
 
