@@ -218,7 +218,7 @@ public class BihuCrack {
                         JSONObject data = jsonObject.getJSONObject("data");
                         int income = data.getInteger("income");
                         logger.info("微文点赞成功，收益是：" + income + " ;url: " + url);
-                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "微文点赞成功", articleLink);
+                       // MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "微文点赞成功", articleLink);
                     }
                 }
             } catch (IOException e) {
@@ -255,7 +255,7 @@ public class BihuCrack {
                     if (res == 1) {
                         int data = jsonObject.getInteger("data");
                         logger.info("长文点赞成功，收益是：" + data + " ;长文信息: " + contentUpVote);
-                        MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "长文点赞成功", articleLink);
+                      // MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "长文点赞成功", articleLink);
                     }
                 }
             } catch (IOException e) {
@@ -414,7 +414,7 @@ public class BihuCrack {
             JSONObject jsonObject1 = (JSONObject) object;
             int type = jsonObject1.getInteger("type");
             int ups = jsonObject1.getInteger("ups");
-            if (type == BihuEnmus.SHORT_CONTENT && ups > 10 || type == BihuEnmus.ARTICLE && ups > 1)
+            if (type == BihuEnmus.SHORT_CONTENT && ups > 0 || type == BihuEnmus.ARTICLE && ups > 0)
                 continue;//跳过已经被人点赞过得文章
 
             int up = jsonObject1.getInteger("up");
@@ -522,7 +522,7 @@ public class BihuCrack {
                 if (res == 1) {
                     logger.info("评论成功， ;url: " + url);
 
-                    MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "评论成功", articleLink);
+                    //MailUtil.sendTxtMail(mailSender, sender, mailTo.split(","), "评论成功", articleLink);
                 } else logger.info(content);
             }
         } catch (IOException e) {
@@ -548,17 +548,17 @@ public class BihuCrack {
      * @return
      */
     private String commentGenerator(UserContent userContent) {
-        // String content = userContent.getType() == BihuEnmus.ARTICLE ? userContent.getContent() : userContent.getSnapcontent();
-//        List<String> keywordList = HanLP.extractSummary(userContent.getContent(), 5);
-//        String comment;
-//        if (keywordList.size() > 0) comment = String.join(",", keywordList);
-//        else {
-//            Random random = new Random();
-//            comment = commentArr[random.nextInt(commentArr.length)];
-//        }
+         String content = userContent.getType() == BihuEnmus.ARTICLE ? userContent.getContent() : userContent.getSnapcontent();
+        List<String> keywordList = HanLP.extractSummary(userContent.getContent(), 5);
+        String comment;
+        if (keywordList.size() > 0) comment = String.join(",", keywordList);
+        else {
+            Random random = new Random();
+            comment = commentArr[random.nextInt(commentArr.length)];
+        }
 
-        Random random = new Random();
-        String comment = userContent.getUserName() + "," + commentArr[random.nextInt(commentArr.length)];
+//        Random random = new Random();
+//        String comment = userContent.getUserName() + "," + commentArr[random.nextInt(commentArr.length)];
         return comment;
     }
 }

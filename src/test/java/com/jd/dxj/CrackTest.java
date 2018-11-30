@@ -31,10 +31,10 @@ public class CrackTest {
     @Resource
     private BihuCrack bihuCrack;
 
-    @Before
-    public void login(){
-        bihuCrack.login();
-    }
+//    @Before
+//    public void login(){
+//        bihuCrack.login();
+//    }
 
     /**
      * 测试短文点赞
