@@ -4,12 +4,13 @@ import com.jd.dxj.enums.BihuEnmus;
 import com.jd.dxj.model.Follow;
 import com.jd.dxj.model.UserContent;
 import com.jd.dxj.util.SpringContext;
-import org.mybatis.spring.annotation.MapperScan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.web.support.SpringBootServletInitializer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import tk.mybatis.spring.annotation.MapperScan;
 
 import java.util.List;
 import java.util.Timer;

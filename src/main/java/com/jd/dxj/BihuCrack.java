@@ -5,7 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.hankcs.hanlp.HanLP;
 import com.jd.dxj.enums.BihuEnmus;
 import com.jd.dxj.model.*;
-import com.jd.dxj.util.MailUtil;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
@@ -60,8 +60,8 @@ public class BihuCrack {
 //    private FollowMapper followMapper;
 
 
-    @Autowired
-    private JavaMailSender mailSender; //自动注入的Bean
+//    @Autowired
+//    private JavaMailSender mailSender; //自动注入的Bean
 
     @Value("${spring.mail.username}")
     private String sender; //读取配置文件中的参数
